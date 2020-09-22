@@ -1,1 +1,31 @@
-
+1.进程和线程的区别：
+  进程：正在进行的一个过程/任务；操作系统系统资源的基本单元；多进程的健壮性高于多线程；
+  线程：cpu上的最小执行单位；任务调度和执行的基本单位；线程之间共享所属进程的地址空间；
+2.cpu由控制单元、存储单元、逻辑单元几部分组成；
+3.查看linux系统的cpu信息指令： cat /proc.cpuinfo
+4.总核数：物理cpu个数*每个物理cpu的核数
+  总逻辑cpu数：物理cpu数*每个物理cpu的核数*超线程
+  查看物理cpu个数指令： cat /proc/cpuinfo |grep "physical id"|sort|uinq|wc -l
+  查看每个物理cpu的核数： cat /proc/cpuinfo |grep "cpu cores"|uinq
+  查看逻辑cpu的个数：cat /proc/cpuinfo |grep "Processor"|wc -l
+5.超线程：把逻辑内核模拟成物理芯片，减少cpu的空闲时间，提高cpu的运行效率；
+  查看是否超线程：grep "sibings" /proc/cpuinfo |uinq
+  如果siblings和cpu cores一致，则说明没有开启超线程；
+  如果siblings是cpu cores两倍，则说明开启超线程；在bios，找到Hyper-Threading项，改为enable；
+6.工作中发现电脑变卡应如何分析？
+  使用top和uptime指令，找到load average：0.01 0.00 0.00
+                   依次表示系统过去1分钟 5分钟 15分钟的平均负载
+  什么是平均负载？ ——指单位时间内，系统处于可运行状态和不可中断状态的平均进程数，也就是平均活跃数，他和cpu的使用率没有直接关系；
+  可运行状态的进程：指正在使用cpu的或者等待等待cpu的进程，使用top和ps命令查看，处于R（running）状态的进程；
+  不可中断状态的进程：值处于内核态关键流程的进程，并且这些流程不可被打断，比如等待硬件的I/O响应，处于D状态的进程；
+7.平均负载为多少时合理？
+  当平均负载和cpu核数相等时，是最理想的状态。————查看每个物理cpu的核数： cat /proc/cpuinfo |grep "cpu cores"|uinq
+  load average的三个值都需要参考，所以性能测试场景至少要跑15分钟，才能更好的分析出问题
+8.stress：Linux系统压力测试工具，用来模拟进程导致负载升高的场景；
+  sysstat：用来监控分析系统的性能，会用到mpstat和pidstat
+    mpstat：是一个常用的多核cpu性能分析工具，用来实时查看每个cpu的性能指标，以及所有cpu的平均指标
+      stress --cpu 1 --timeout 600 ：模拟一颗cpu使用率100%，持续600s
+      watch -d uptime ：动态观看load average值
+    pidstat：是一个常用的进程性能分析工具，用来实时查看进程的cpu、内存、I/O以及上下文切换等指标
+      mpstat -P ALL 5 ： 监控所有的cpu，每隔5s输出一次数据
+      pidstat -u 5 1 ： 间隔5秒，输出一组进程使用cpu的数据
