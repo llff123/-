@@ -29,3 +29,8 @@
     pidstat：是一个常用的进程性能分析工具，用来实时查看进程的cpu、内存、I/O以及上下文切换等指标
       mpstat -P ALL 5 ： 监控所有的cpu，每隔5s输出一次数据
       pidstat -u 5 1 ： 间隔5秒，输出一组进程使用cpu的数据
+9.平均负载案例（CPU密集型进程）定位过程是什么？
+  a.先使用stress进行cpu100%使用率的模拟
+  b.然后使用 watch -d uptime指令动态观察load average值
+  c.使用mpstat -P ALL 5指令监控所有的cpu，每隔5s输出一次数据，找到某个cpu用户态使用率为100，idle几乎为0的数据，说明正是因为这颗cpu的100使用率，导致了平均负载值的增加
+  d.使用pidstat -u 5 1找到用户态使用率最大的一个进程stress，说明是该进程导致了平均负载值的增加
