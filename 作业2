@@ -14,6 +14,21 @@
     2.但过多的上下文切换，会消耗大量CPU时间在寄存器、内核栈以及虚拟内存等数据的保存和恢复上，从而缩短进程真正的运行时间，导致系统的整体性能下降
     
 vmstat：一个常用的系统性能分析工具，主要用来分析系统的内存使用情况，分析上下文切换和中断的次数
+不同参数含义：
+-a, --active          active/inactive memory  --显示活跃/不活跃的内存
+-f, --forks           number of forks since boot  --自启动的fork数量
+-m, --slabs           slabinfo  --显示slabs相关信息
+-n, --one-header      do not redisplay header  --只在开始时显示一次各字段名称
+-s, --stats           event counter statistics  --显示内存相关统计信息及多种系统活动数量
+-d, --disk            disk statistics   --显示磁盘相关统计信息
+-D, --disk-sum        summarize disk statistics   --总结磁盘统计信息
+-p, --partition <dev> partition specific statistics --划分特定磁盘相关统计信息
+-S, --unit <char>     define display unit --使用指定单位显示
+-w, --wide            wide output --宽输出
+-t, --timestamp       show timestamp  --显示时间戳
+-h, --help            display this help and exit  --显示帮助和退出
+-V, --version         output version information and exit --输出版本信息和退出
+
 操作分析过程：
 1.在第一个终端里运行sysbench，模拟系统多线程调度的瓶颈
   sysbench --threads=10 --time=300 threads run(运行10个线程跑5分钟，模拟多线程切换)
