@@ -31,10 +31,25 @@
       pidstat -u 5 1 ： 间隔5秒，输出一组进程使用cpu的数据
 9.平均负载案例
   CPU密集型进程：定位过程是什么？
-    a.先使用stress进行cpu100%使用率的模拟   stress --cpu 1 --timeout 600
+    a.先使用stress进行cpu100%使用率的模拟   stress --cpu 1 --timeout 600（模拟1个进程都反复不停的计算随机数的平方根sqrt()持续600s）
     b.然后使用 watch -d uptime指令动态观察load average值
     c.使用mpstat -P ALL 5指令监控所有的cpu，每隔5s输出一次数据，找到某个cpu用户态使用率为100，idle几乎为0的数据，说明正是因为这颗cpu的100使用率，导致了平均负载值的增加
-    d.使用pidstat -u 5 1找到用户态使用率最大的一个进程stress，说明是该进程导致了平均负载值的增加
+    d.使用pidstat -u 5 1(隔5s输出一组所有进程的数据)找到用户态使用率最大的一个进程stress，说明是该进程导致了平均负载值的增加
   IO密集型进程：
-    a.先使用stress -i 1 --timeout 600指令进行IO密集型模拟
-    b.然后使用mpstat -P ALL 5 1:指令观察是否有某个cpu的%iowait很高，同时%usr也较高
+    a.先使用stress -d 1 --timeout 600指令进行IO密集型模拟（产生一个进程反复调用write() 或 unlink() 函数持续600s）
+    b.另开窗口使用 watch -d uptime指令动态观察load average值--load average: 2.89, 1.73, 0.90
+    c.另开窗口使用mpstat -P ALL 5 :指令观察是否有某颗cpu的%iowait很高，同时%usr也较高，说明平均负载的升高是由于iowait的升高而导致的
+    d.使用pidstat -u 5 1指令找到cpu占用最高的几个进程
+  大量进程的场景：（当系统中运行进程超出cpu运行能力的时候，出现等待cpu的进程）
+    a.先使用stress -c 12 -t 600（模拟12个进程都反复不停的计算随机数的平方根sqrt()持续600s）
+        因为系统只有4颗cpu，明显低于12个进程，因此系统cpu处于严重过载状态
+    b.另开窗口使用 watch -d uptime指令动态观察load average值--load average: 11.69, 8.82, 6.72
+    c.另开窗口使用mpstat -P ALL 5 :
+    d.使用pidstat -u 5 1指令去查看哪些进程等待cpu时间较长，即%wait值
+        可以发现此时cpu使用率并不算太高，但是平均负载却很大
+  总结：
+    cpu使用率，是单位时间内cpu繁忙情况的统计，跟平均负载不一定完全对应
+    cpu密集型进程，使用大量cpu会导致平均负载升高，此时这两者是一致的
+    I/O密集型进程，等待I/O也会导致平均负载升高，但cpu使用率不一定很高
+    大量等待cpu的进程调度也会导致平均负载的升高，这个时候的cpu使用也会比较高
+    
