@@ -33,7 +33,7 @@
     来自 192.168.229.130 的回复: 字节=32 时间=1ms TTL=64
     来自 192.168.229.130 的回复: 字节=32 时间<1ms TTL=64
           可发现响应时间基本上<=1ms，说明网络没有瓶颈
-  5.排除网络瓶颈之后，再来服务器查看数据：top
+  5.排除网络瓶颈之后，再来服务器查看数据：使用top命令，发现：
       top - 18:18:21 up  7:25,  4 users,  load average: 294.17, 181.29, 86.54
     Tasks: 192 total,   1 running, 116 sleeping,   0 stopped,   0 zombie
     %Cpu0  :100.0 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st（以下几行数据重点关注）
@@ -44,8 +44,52 @@
     KiB Swap:  2097148 total,  2097148 free,        0 used.  1089652 avail Mem 
 
        PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND                            
-     12435 root      20   0 5302456 399276  17032 S 399.0 19.9  39:44.27 java                               
-      1249 root      20   0  216440   7604   5924 S   0.3  0.4   0:01.70 rsyslogd
-      -----------------发现用户态占用CPU达100%，说明是用户进程导致了平均负载的增加
-  6.使用pidstat -wt 3去查看线程数据，发现java的子线程数量非常多，累计到一起占用大量CPU。
-          
+     15646 root      20   0 5958996 418008  17400 S 400.0 20.8 138:22.32 java                               
+     15111 root      20   0  157512   4328   3676 S   0.3  0.2   0:02.31 watch 
+      ---------------------------
+      nice:正值优先级最低，负值优先级最高             VIRT:进程使用的虚拟内存总和
+      RES:进程使用的、没有被缓存的物理内存            SHR：共享内存的大小
+      S:  --D：不可中断的进程  --R：正在运行的进程  --S：休眠的进程 --Z：僵尸进程
+  6.从top的输出，可以发现Java进程占用CPU达399%，说明是这个Java进程导致了平均负载的增加。需要进一步确认这个Java进程是不是自己启动的？
+      ps -aux|grep 15646      --显示Java信息，在哪个tomcat下面运行，哪个项目
+      -a:当前终端的所有进程，包括其他的用户进程
+      -u:以用户为主来显示程序状态
+      -x:显示所有进程，不以端来区分
+  7.再去查看这个进程下的所有线程信息————————top -Hp 15646
+      -H:显示进程下的所有线程信息
+      -p:后面指定所要查看进程的pid
+      
+      top - 20:44:04 up  8:19,  4 users,  load average: 580.23, 572.47, 510.22
+    Threads: 1810 total, 578 running, 1232 sleeping,   0 stopped,   0 zombie
+    %Cpu0  :100.0 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+    %Cpu1  : 99.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+    %Cpu2  :100.0 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+    %Cpu3  :100.0 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+    KiB Mem :  2007880 total,   879452 free,   779688 used,   348740 buff/cache
+    KiB Swap:  2097148 total,  2097148 free,        0 used.  1046784 avail Mem 
+
+     PID USER      PR  NI    VIRT    RES    SHR S %CPU %MEM     TIME+ COMMAND                             
+   17502 root      20   0 5958996 418060  17400 R  1.6 20.8   0:13.81 java                                
+   17904 root      20   0 5958996 418060  17400 R  1.6 20.8   0:11.96 java                                
+   15982 root      20   0 5958996 418060  17400 R  1.2 20.8   0:16.49 java 
+   
+   7.将Java进程的pid：15646转换为16进制数字——————printf '%x\n' 15646
+    [root@localhost bin]# printf '%x\n' 17502  (17502是第一个线程的pid，一个进程下的所有线程的16进制数都和底层线程栈的nid对应)
+    445e
+   8.用jdk自带的jstack工具，打印Java堆栈的线程跟踪活动
+      jstack 15646(java进程的pid)|grep 445e(上一步的结果) -A30(离搜索结果最近的30行数据)
+
+      java.lang.Thread.State: TIMED_WAITING (sleeping)
+        at java.lang.Thread.sleep(Native Method)
+        at com.pertest.ThreadPerTest$LazyTask.run(ThreadPerTest.java:15)
+        at java.lang.Thread.run(Thread.java:745)
+
+      "Thread-1400" #1454 daemon prio=5 os_prio=0 tid=0x00007f72840f2800 nid=0x4450 runnable [0x00007f7221399000]
+         java.lang.Thread.State: RUNNABLE
+        at java.util.Random.next(Random.java:204)
+        at java.util.Random.nextDouble(Random.java:532)
+        at java.lang.Math.random(Math.java:773)
+        at com.pertest.ThreadPerTest$ThreadPerTask.run(ThreadPerTest.java:7)
+        at java.lang.Thread.run(Thread.java:745)
+      ---------发现com.pertest包下ThreadPerTest类ThreadPerTask方法的代码第7行有问题
+
